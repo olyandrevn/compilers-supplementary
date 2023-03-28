@@ -67,7 +67,7 @@ fun eval (c@[s, w], expr) {
   case expr of
     Var(x)                      -> [c, s(x)]
   | Const(n)                    -> [c, n]
-  | Ref(x)                      -> [c, x]
+  | Ref(x)                      -> [c, Ref(x)]
   | Ignore(exp)                 -> case eval(c, exp) of
                                     [c, _] -> [c, Void]
                                     esac
@@ -76,11 +76,9 @@ fun eval (c@[s, w], expr) {
                                     [c, val1:val2:_] -> [c, evalOp(op, val1, val2)]
                                     esac
   | Assn(lexp, rexp)            -> case evalList(c, {lexp, rexp}) of
-                                    [[s, w], lval:rval:_ ] -> [[s <- [lval, rval], w], rval]
+                                    [[s, w], Ref(lval):rval:_ ] -> [[s <- [lval, rval], w], rval]
                                     esac
-  | Seq(exp1, exp2)             -> case eval(c, exp1) of
-                                    [c, _] -> eval(c, exp2)
-                                    esac
+  | Seq(exp1, exp2)             -> eval(eval(c, exp1).fst, exp2)
   | Read(x)                     -> case readWorld(w) of 
                                     [n, wr] -> [[s <- [x, n], wr], Void]
                                     esac
@@ -88,28 +86,16 @@ fun eval (c@[s, w], expr) {
                                     [c, v] -> [[s, writeWorld(v, w)], Void]
                                     esac
   | If(exp, expTrue, expFalse)  -> case eval(c, exp) of
-                                    [c, v] -> 
-                                      if v != 0
-                                      then eval(c, expTrue)
-                                      else eval(c, expFalse) fi
+                                      [c, 0] -> eval(c, expFalse)
+                                    | [c, _] -> eval(c, expTrue)
                                     esac
   | While(exp, expTrue)         -> case eval(c, exp) of
-                                    [c, v] ->
-                                      if v != 0
-                                      then 
-                                        case eval(c, expTrue) of
-                                          [c, _] -> eval(c, expr)
-                                          esac
-                                      else [c, Void] fi
+                                      [c, 0] -> [c, Void]
+                                    | [c, _] -> eval(eval(c, expTrue).fst, expr)
                                     esac
-  | DoWhile(expTrue, exp)       -> case eval(c, expTrue) of
-                                    [c, _] ->
-                                      case eval(c, exp) of
-                                        [c, v] ->
-                                          if v != 0
-                                          then eval(c, expr)
-                                          else [c, Void] fi
-                                        esac
+  | DoWhile(expTrue, exp)       -> case eval(eval(c, expTrue).fst, exp) of
+                                      [c, 0] -> [c, Void]
+                                    | [c, _] -> eval(c, expr)
                                     esac
   | _                           -> failure ("evalExpr not implemented\n")
    esac

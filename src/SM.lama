@@ -78,21 +78,14 @@ fun eval (env, c@[stack, s, w], insns) {
                               esac
     | LABEL(l):insnsEnd   -> eval(env, c, insnsEnd)
     | JMP(l):insnsEnd     -> eval(env, c, fromLabel(env, l))
-    | CJMP(z, l):insnsEnd -> case z of
-                              "nz" -> case stack of
-                                        n:stackEnd -> if n != 0
-                                                      then eval(env, [stackEnd, s, w], fromLabel(env, l))
-                                                      else eval(env, [stackEnd, s, w], insnsEnd) fi
-                                        esac
-                            | "z" -> case stack of
-                                        n:stackEnd -> if n == 0
-                                                      then eval(env, [stackEnd, s, w], fromLabel(env, l))
-                                                      else eval(env, [stackEnd, s, w], insnsEnd) fi
-                                        esac
+    | CJMP(z, l):insnsEnd -> case stack of
+                              n:stackEnd -> if case z of "z" -> n == 0 | _ -> n != 0 esac
+                                            then eval(env, [stackEnd, s, w], fromLabel(env, l))
+                                            else eval(env, [stackEnd, s, w], insnsEnd) fi
                               esac
-    | LDA(x):insnsEnd     -> eval(env, [x:stack, s, w], insnsEnd)
+    | LDA(x):insnsEnd     -> eval(env, [Ref(x):stack, s, w], insnsEnd)
     | STI:insnsEnd        -> case stack of
-                              m:n:stackEnd -> eval(env, [m:stackEnd, s <- [n, m], w], insnsEnd)
+                              n:Ref(x):stackEnd -> eval(env, [n:stackEnd, s <- [x, n], w], insnsEnd)
                               esac
     | DROP:insnsEnd       -> case stack of
                               n:stackEnd -> eval(env, [stackEnd, s, w], insnsEnd)
